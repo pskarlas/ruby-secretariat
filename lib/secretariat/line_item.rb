@@ -34,6 +34,7 @@ module Secretariat
     :charge_amount,
     :origin_country_code,
     :currency_code,
+    :note,
     keyword_init: true
   ) do
 
@@ -92,6 +93,11 @@ module Secretariat
       xml['ram'].IncludedSupplyChainTradeLineItem do
         xml['ram'].AssociatedDocumentLineDocument do
           xml['ram'].LineID line_item_index
+          xml['ram'].IncludedNote do
+            xml['ram'].Content do
+              xml.text(note)
+            end
+          end if note
         end
         if (version == 2)
           xml['ram'].SpecifiedTradeProduct do

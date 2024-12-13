@@ -77,4 +77,10 @@ module Secretariat
     :TON => "TNE",
     :WEEK => "WEE"
   }
+
+  INVOICE_TYPES = {
+    :REGULAR => "380",
+    :DEBIT => "383",
+    :CREDIT => "381"
+  }
 end

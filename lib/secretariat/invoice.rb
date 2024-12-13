@@ -40,6 +40,10 @@ module Secretariat
     :grand_total_amount,
     :due_amount,
     :paid_amount,
+    :invoice_type,
+    :referenced_document_id,
+    :referenced_document_type,
+    :rounding_amount,
 
     keyword_init: true
   ) do
@@ -73,6 +77,10 @@ module Secretariat
 
     def payment_code
       PAYMENT_CODES[payment_type] || '1'
+    end
+
+    def invoice_code
+      INVOICE_TYPES[invoice_type] || '380'
     end
 
     def valid?
@@ -115,6 +123,14 @@ module Secretariat
 
 
     def namespaces(version: 1)
+      return {
+          'xmlns:qdt' => 'urn:un:unece:uncefact:data:standard:QualifiedDataType:100',
+          'xmlns:ram' => 'urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100',
+          'xmlns:udt' => 'urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100',
+          'xmlns:rsm' => 'urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100',
+          'xmlns:xsi' => 'http://www.w3.org/2001/XMLSchema-instance'
+      } if @profile == :extended
+
       by_version(version,
         {
           'xmlns:ram' => 'urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:12',
@@ -132,7 +148,9 @@ module Secretariat
       )
     end
 
-    def to_xml(version: 1, validate: true)
+    def to_xml(version: 1, validate: true, profile: :basic)
+      @profile = profile
+
       if version < 1 || version > 2
         raise 'Unsupported Document Version'
       end
@@ -152,6 +170,7 @@ module Secretariat
           xml['rsm'].send(context) do
             xml['ram'].GuidelineSpecifiedDocumentContextParameter do
               version_id = by_version(version, 'urn:ferd:CrossIndustryDocument:invoice:1p0:comfort', 'urn:cen.eu:en16931:2017')
+              version_id = 'urn:cen.eu:en16931:2017#conformant#urn:factur-x.eu:1p0:extended' if @profile == :extended
               xml['ram'].ID version_id
             end
           end
@@ -163,7 +182,7 @@ module Secretariat
             if version == 1
               xml['ram'].Name "RECHNUNG"
             end
-            xml['ram'].TypeCode '380' # TODO: make configurable
+            xml['ram'].TypeCode invoice_code
             xml['ram'].IssueDateTime do
               xml['udt'].DateTimeString(format: '102') do
                 xml.text(issue_date.strftime("%Y%m%d"))
@@ -192,6 +211,12 @@ module Secretariat
               xml['ram'].BuyerTradeParty do
                 buyer.to_xml(xml, version: version)
               end
+              xml['ram'].AdditionalReferencedDocument do
+                xml['ram'].IssuerAssignedID do
+                  xml.text(referenced_document_id)
+                end
+                xml['ram'].TypeCode INVOICE_TYPES[referenced_document_type]
+              end if invoice_code == '381'
             end
 
             delivery = by_version(version, 'ApplicableSupplyChainTradeDelivery', 'ApplicableHeaderTradeDelivery')
@@ -222,20 +247,39 @@ module Secretariat
                   end
                 end
               end
-              taxes.each do |tax|
-                xml['ram'].ApplicableTradeTax do
-                  Helpers.currency_element(xml, 'ram', 'CalculatedAmount', tax.tax_amount, currency_code, add_currency: version == 1)
-                  xml['ram'].TypeCode 'VAT'
-                  if tax_reason_text && tax_reason_text != ''
-                    xml['ram'].ExemptionReason tax_reason_text
-                  end
-                  Helpers.currency_element(xml, 'ram', 'BasisAmount', tax.base_amount, currency_code, add_currency: version == 1)
-                  xml['ram'].CategoryCode tax_category_code(version: version)
 
-                  percent = by_version(version, 'ApplicablePercent', 'RateApplicablePercent')
-                  xml['ram'].send(percent, Helpers.format(tax.tax_percent))
+              #
+              # Disable line based tax determination
+              # since it does not align with how we handle rounding correction
+              #
+              # taxes.each do |tax|
+              #   xml['ram'].ApplicableTradeTax do
+              #     Helpers.currency_element(xml, 'ram', 'CalculatedAmount', tax.tax_amount, currency_code, add_currency: version == 1)
+              #     xml['ram'].TypeCode 'VAT'
+              #     if tax_reason_text && tax_reason_text != ''
+              #       xml['ram'].ExemptionReason tax_reason_text
+              #     end
+              #     Helpers.currency_element(xml, 'ram', 'BasisAmount', tax.base_amount, currency_code, add_currency: version == 1)
+              #     xml['ram'].CategoryCode tax_category_code(version: version)
+
+              #     percent = by_version(version, 'ApplicablePercent', 'RateApplicablePercent')
+              #     xml['ram'].send(percent, Helpers.format(tax.tax_percent))
+              #   end
+              # end
+
+              xml['ram'].ApplicableTradeTax do
+                Helpers.currency_element(xml, 'ram', 'CalculatedAmount', tax_amount, currency_code, add_currency: version == 1)
+                xml['ram'].TypeCode 'VAT'
+                if tax_reason_text && tax_reason_text != ''
+                  xml['ram'].ExemptionReason tax_reason_text
                 end
+                Helpers.currency_element(xml, 'ram', 'BasisAmount', basis_amount, currency_code, add_currency: version == 1)
+                xml['ram'].CategoryCode tax_category_code(version: version)
+
+                percent = by_version(version, 'ApplicablePercent', 'RateApplicablePercent')
+                xml['ram'].send(percent, Helpers.format(tax_percent))
               end
+
               if version == 2 && service_period_start && service_period_end
                 xml['ram'].BillingSpecifiedPeriod do
                   xml['ram'].StartDateTime do
@@ -264,6 +308,7 @@ module Secretariat
                 Helpers.currency_element(xml, 'ram', 'AllowanceTotalAmount', BigDecimal(0), currency_code, add_currency: version == 1)
                 Helpers.currency_element(xml, 'ram', 'TaxBasisTotalAmount', basis_amount, currency_code, add_currency: version == 1)
                 Helpers.currency_element(xml, 'ram', 'TaxTotalAmount', tax_amount, currency_code, add_currency: true)
+                Helpers.currency_element(xml, 'ram', 'RoundingAmount', rounding_amount, currency_code, add_currency: false) if rounding_amount
                 Helpers.currency_element(xml, 'ram', 'GrandTotalAmount', grand_total_amount, currency_code, add_currency: version == 1)
                 Helpers.currency_element(xml, 'ram', 'TotalPrepaidAmount', paid_amount, currency_code, add_currency: version == 1)
                 Helpers.currency_element(xml, 'ram', 'DuePayableAmount', due_amount, currency_code, add_currency: version == 1)
