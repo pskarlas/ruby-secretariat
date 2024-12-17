@@ -43,6 +43,7 @@ module Secretariat
     :invoice_type,
     :referenced_document_id,
     :referenced_document_type,
+    :referenced_document_date,
     :rounding_amount,
 
     keyword_init: true
@@ -216,6 +217,11 @@ module Secretariat
                   xml.text(referenced_document_id)
                 end
                 xml['ram'].TypeCode INVOICE_TYPES[referenced_document_type]
+                xml['ram'].IssueDateTime do
+                  xml['udt'].DateTimeString(format: '102') do
+                    xml.text(referenced_document_date.strftime("%Y%m%d"))
+                  end
+                end
               end if invoice_code == '381'
             end
 
