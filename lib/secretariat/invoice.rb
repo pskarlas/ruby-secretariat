@@ -202,7 +202,6 @@ module Secretariat
             end
 
             trade_agreement = by_version(version, 'ApplicableSupplyChainTradeAgreement', 'ApplicableHeaderTradeAgreement')
-
             xml['ram'].send(trade_agreement) do
               if buyer_reference
                 xml['ram'].BuyerReference buyer_reference
@@ -223,11 +222,10 @@ module Secretariat
                     xml.text(referenced_document_date.strftime("%Y%m%d"))
                   end
                 end
-              end if invoice_code == '381'
+              end if invoice_code == '381' && referenced_document_id && referenced_document_type && referenced_document_date
             end
 
             delivery = by_version(version, 'ApplicableSupplyChainTradeDelivery', 'ApplicableHeaderTradeDelivery')
-
             xml['ram'].send(delivery) do
               if version == 2
                 xml['ram'].ShipToTradeParty do
@@ -242,6 +240,7 @@ module Secretariat
                 end
               end
             end
+
             trade_settlement = by_version(version, 'ApplicableSupplyChainTradeSettlement', 'ApplicableHeaderTradeSettlement')
             xml['ram'].send(trade_settlement) do
               xml['ram'].InvoiceCurrencyCode currency_code
@@ -255,7 +254,9 @@ module Secretariat
                 end
               end
 
-
+              #
+              # New Addition: Report on different VAT rates
+              #
               applicable_taxes.each do |tax|
                 xml['ram'].ApplicableTradeTax do
                   Helpers.currency_element(xml, 'ram', 'CalculatedAmount', tax.tax_amount, currency_code, add_currency: version == 1)
@@ -270,6 +271,10 @@ module Secretariat
                   xml['ram'].send(percent, Helpers.format(tax.tax_percent))
                 end
               end
+
+              #
+              # Old implementation
+              #
 
               # xml['ram'].ApplicableTradeTax do
               #   Helpers.currency_element(xml, 'ram', 'CalculatedAmount', tax_amount, currency_code, add_currency: version == 1)
