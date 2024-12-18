@@ -67,6 +67,10 @@ module Secretariat
       TAX_CATEGORY_CODES[tax_category] || 'S'
     end
 
+    def line_tax_category(item_tax_category)
+      TAX_CATEGORY_CODES[item_tax_category] || 'S'
+    end
+
     def taxes
       taxes = {}
       line_items.each do |line_item|
@@ -265,29 +269,12 @@ module Secretariat
                     xml['ram'].ExemptionReason tax_reason_text
                   end
                   Helpers.currency_element(xml, 'ram', 'BasisAmount', tax.base_amount, currency_code, add_currency: version == 1)
-                  xml['ram'].CategoryCode tax_category_code(version: version)
+                  xml['ram'].CategoryCode line_tax_category(tax.tax_category_code)
 
                   percent = by_version(version, 'ApplicablePercent', 'RateApplicablePercent')
                   xml['ram'].send(percent, Helpers.format(tax.tax_percent))
                 end
               end
-
-              #
-              # Old implementation
-              #
-
-              # xml['ram'].ApplicableTradeTax do
-              #   Helpers.currency_element(xml, 'ram', 'CalculatedAmount', tax_amount, currency_code, add_currency: version == 1)
-              #   xml['ram'].TypeCode 'VAT'
-              #   if tax_reason_text && tax_reason_text != ''
-              #     xml['ram'].ExemptionReason tax_reason_text
-              #   end
-              #   Helpers.currency_element(xml, 'ram', 'BasisAmount', basis_amount, currency_code, add_currency: version == 1)
-              #   xml['ram'].CategoryCode tax_category_code(version: version)
-
-              #   percent = by_version(version, 'ApplicablePercent', 'RateApplicablePercent')
-              #   xml['ram'].send(percent, Helpers.format(tax_percent))
-              # end
 
               if version == 2 && service_period_start && service_period_end
                 xml['ram'].BillingSpecifiedPeriod do
