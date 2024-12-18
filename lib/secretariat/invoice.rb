@@ -45,6 +45,7 @@ module Secretariat
     :referenced_document_type,
     :referenced_document_date,
     :rounding_amount,
+    :applicable_taxes,
 
     keyword_init: true
   ) do
@@ -254,37 +255,34 @@ module Secretariat
                 end
               end
 
-              #
-              # Disable line based tax determination
-              # since it does not align with how we handle rounding correction
-              #
-              # taxes.each do |tax|
-              #   xml['ram'].ApplicableTradeTax do
-              #     Helpers.currency_element(xml, 'ram', 'CalculatedAmount', tax.tax_amount, currency_code, add_currency: version == 1)
-              #     xml['ram'].TypeCode 'VAT'
-              #     if tax_reason_text && tax_reason_text != ''
-              #       xml['ram'].ExemptionReason tax_reason_text
-              #     end
-              #     Helpers.currency_element(xml, 'ram', 'BasisAmount', tax.base_amount, currency_code, add_currency: version == 1)
-              #     xml['ram'].CategoryCode tax_category_code(version: version)
 
-              #     percent = by_version(version, 'ApplicablePercent', 'RateApplicablePercent')
-              #     xml['ram'].send(percent, Helpers.format(tax.tax_percent))
-              #   end
-              # end
+              applicable_taxes.each do |tax|
+                xml['ram'].ApplicableTradeTax do
+                  Helpers.currency_element(xml, 'ram', 'CalculatedAmount', tax.tax_amount, currency_code, add_currency: version == 1)
+                  xml['ram'].TypeCode 'VAT'
+                  if tax_reason_text && tax_reason_text != ''
+                    xml['ram'].ExemptionReason tax_reason_text
+                  end
+                  Helpers.currency_element(xml, 'ram', 'BasisAmount', tax.base_amount, currency_code, add_currency: version == 1)
+                  xml['ram'].CategoryCode tax_category_code(version: version)
 
-              xml['ram'].ApplicableTradeTax do
-                Helpers.currency_element(xml, 'ram', 'CalculatedAmount', tax_amount, currency_code, add_currency: version == 1)
-                xml['ram'].TypeCode 'VAT'
-                if tax_reason_text && tax_reason_text != ''
-                  xml['ram'].ExemptionReason tax_reason_text
+                  percent = by_version(version, 'ApplicablePercent', 'RateApplicablePercent')
+                  xml['ram'].send(percent, Helpers.format(tax.tax_percent))
                 end
-                Helpers.currency_element(xml, 'ram', 'BasisAmount', basis_amount, currency_code, add_currency: version == 1)
-                xml['ram'].CategoryCode tax_category_code(version: version)
-
-                percent = by_version(version, 'ApplicablePercent', 'RateApplicablePercent')
-                xml['ram'].send(percent, Helpers.format(tax_percent))
               end
+
+              # xml['ram'].ApplicableTradeTax do
+              #   Helpers.currency_element(xml, 'ram', 'CalculatedAmount', tax_amount, currency_code, add_currency: version == 1)
+              #   xml['ram'].TypeCode 'VAT'
+              #   if tax_reason_text && tax_reason_text != ''
+              #     xml['ram'].ExemptionReason tax_reason_text
+              #   end
+              #   Helpers.currency_element(xml, 'ram', 'BasisAmount', basis_amount, currency_code, add_currency: version == 1)
+              #   xml['ram'].CategoryCode tax_category_code(version: version)
+
+              #   percent = by_version(version, 'ApplicablePercent', 'RateApplicablePercent')
+              #   xml['ram'].send(percent, Helpers.format(tax_percent))
+              # end
 
               if version == 2 && service_period_start && service_period_end
                 xml['ram'].BillingSpecifiedPeriod do
